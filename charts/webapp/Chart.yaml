@@ -1,0 +1,8 @@
+apiVersion: v2
+name: webapp
+description: >
+  Flask demo application demonstrating MicroK8s multi-node scheduling,
+  soft pod spreading, and PostgreSQL connectivity on constrained hardware.
+type: application
+version: 0.1.0
+appVersion: "1.0.0"

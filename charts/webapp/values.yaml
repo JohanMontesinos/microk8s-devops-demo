@@ -1,0 +1,62 @@
+# ── Replica count ─────────────────────────────────────────────────────────────
+# 2 replicas by default: one per node when 2 nodes are available.
+# Soft-spreading ensures both pods schedule even on a single node.
+replicaCount: 2
+
+# ── Image ─────────────────────────────────────────────────────────────────────
+image:
+  # REPLACE NODE1_IP with the actual LAN IP of Node1 before running helm install.
+  # Node2 containerd cannot resolve "localhost", so the full IP is required.
+  repository: "NODE1_IP:32000/webapp"
+  tag: "latest"
+  pullPolicy: Always     # Always pull so a re-pushed :latest is picked up
+
+# ── Service ───────────────────────────────────────────────────────────────────
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 5000
+
+# ── Ingress ───────────────────────────────────────────────────────────────────
+ingress:
+  enabled: true
+  className: "nginx"     # MicroK8s built-in ingress uses nginx class
+  host: ""               # Empty = match ALL hosts (wildcard)
+  path: "/"
+  pathType: Prefix
+
+# ── Resource requests & limits ────────────────────────────────────────────────
+# Sized conservatively for 4 GB RAM nodes.
+# 2 replicas x 128 Mi = 256 Mi minimum reserved for webapp workload.
+resources:
+  requests:
+    cpu: "100m"
+    memory: "128Mi"
+  limits:
+    cpu: "500m"
+    memory: "256Mi"
+
+# ── PostgreSQL connection env vars ────────────────────────────────────────────
+postgres:
+  host: "postgres-service"
+  port: "5432"
+  dbName: "appdb"
+  user: "appuser"
+  # In a real setup, use an ExternalSecret or Sealed Secret here.
+  password: "apppassword"
+
+# ── Topology spreading (soft — never blocks scheduling) ───────────────────────
+# When topologySpread.enabled is true, a topologySpreadConstraint is added
+# with whenUnsatisfiable: ScheduleAnyway so pods always schedule.
+topologySpread:
+  enabled: true
+  maxSkew: 1
+  topologyKey: "kubernetes.io/hostname"
+
+# ── Pod anti-affinity (preferred — spreads pods across nodes when possible) ───
+# Using preferredDuringSchedulingIgnoredDuringExecution means a single-node
+# cluster is never blocked; Kubernetes simply ignores the preference.
+podAntiAffinity:
+  enabled: true
+  weight: 100
+  topologyKey: "kubernetes.io/hostname"

@@ -1,0 +1,174 @@
+# PostgreSQL 15 (Alpine) tuned for minimal RAM on MicroK8s hostpath storage.
+# All four resources are in one file so `kubectl apply -f` is a single command.
+# Order matters: PVC first, Secret second (Deployment references both).
+
+---
+# ── 1. PersistentVolumeClaim ──────────────────────────────────────────────────
+# microk8s-hostpath dynamically provisions a directory on the node's filesystem.
+# nodeSelector in the Deployment must match the node where this PVC lives,
+# because hostpath volumes are NOT portable across nodes.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pvc
+  namespace: default
+spec:
+  accessModes:
+    - ReadWriteOnce          # Only one pod can mount at a time (Recreate strategy enforces this)
+  storageClassName: microk8s-hostpath
+  resources:
+    requests:
+      storage: 2Gi
+
+---
+# ── 2. Secret ─────────────────────────────────────────────────────────────────
+# Base64-encoded values: echo -n 'value' | base64
+# appuser     → YXBwdXNlcg==
+# apppassword → YXBwcGFzc3dvcmQ=
+# appdb       → YXBwZGI=
+apiVersion: v1
+kind: Secret
+metadata:
+  name: postgres-secret
+  namespace: default
+type: Opaque
+data:
+  POSTGRES_USER:     YXBwdXNlcg==
+  POSTGRES_PASSWORD: YXBwcGFzc3dvcmQ=
+  POSTGRES_DB:       YXBwZGI=
+
+---
+# ── 3. Deployment ─────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: default
+  labels:
+    app: postgres
+spec:
+  replicas: 1
+  # Recreate: destroy old pod before creating new one.
+  # This prevents two pods mounting the same hostpath PVC simultaneously,
+  # which would corrupt the database.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      # ── Node pinning ───────────────────────────────────────────────────────
+      # REPLACE "NODE1_HOSTNAME" with the output of:
+      #   kubectl get nodes -o name | head -1 | cut -d/ -f2
+      # The hostpath PVC is created on the node that first provisions it.
+      # If Postgres is rescheduled to another node the PVC data will be missing.
+      nodeSelector:
+        kubernetes.io/hostname: NODE1_HOSTNAME
+
+      containers:
+        - name: postgres
+          image: postgres:15-alpine    # Alpine base keeps image ~80 MB vs ~160 MB for debian
+          imagePullPolicy: IfNotPresent
+
+          # ── Server tuning arguments ────────────────────────────────────────
+          # These are passed directly to the postgres binary (not as ENV vars).
+          # shared_buffers / effective_cache_size / work_mem are sized for
+          # the 256 MB memory limit above. max_connections=20 prevents RAM
+          # exhaustion from idle connection overhead.
+          args:
+            - "postgres"
+            - "-c"
+            - "shared_buffers=32MB"
+            - "-c"
+            - "effective_cache_size=128MB"
+            - "-c"
+            - "work_mem=2MB"
+            - "-c"
+            - "maintenance_work_mem=16MB"
+            - "-c"
+            - "max_connections=20"
+            - "-c"
+            - "wal_buffers=4MB"
+            - "-c"
+            - "checkpoint_completion_target=0.9"
+            - "-c"
+            - "synchronous_commit=off"
+
+          envFrom:
+            - secretRef:
+                name: postgres-secret
+
+          ports:
+            - name: postgres
+              containerPort: 5432
+              protocol: TCP
+
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+
+          volumeMounts:
+            - name: pgdata
+              mountPath: /var/lib/postgresql/data
+              # subPath prevents the postgres init from complaining about
+              # a non-empty mount directory (the hostpath root may contain
+              # other files created by the storage provisioner).
+              subPath: pgdata
+
+          # ── Probes ────────────────────────────────────────────────────────
+          livenessProbe:
+            exec:
+              command:
+                - "pg_isready"
+                - "-U"
+                - "appuser"
+                - "-d"
+                - "appdb"
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            failureThreshold: 5
+
+          readinessProbe:
+            exec:
+              command:
+                - "pg_isready"
+                - "-U"
+                - "appuser"
+                - "-d"
+                - "appdb"
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+
+      volumes:
+        - name: pgdata
+          persistentVolumeClaim:
+            claimName: postgres-pvc
+
+---
+# ── 4. Service ────────────────────────────────────────────────────────────────
+# ClusterIP so only in-cluster workloads can reach Postgres (no external exposure).
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-service
+  namespace: default
+  labels:
+    app: postgres
+spec:
+  type: ClusterIP
+  selector:
+    app: postgres
+  ports:
+    - name: postgres
+      protocol: TCP
+      port: 5432
+      targetPort: 5432

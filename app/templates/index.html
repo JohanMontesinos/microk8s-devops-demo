@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MicroK8s Demo App</title>
+  <style>
+    /* Dark theme — no external CSS dependency so it works with no internet */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #0d1117;
+      color: #c9d1d9;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2rem;
+      padding: 2rem;
+    }
+
+    header h1 {
+      font-size: 1.8rem;
+      color: #58a6ff;
+      text-align: center;
+    }
+
+    header p {
+      color: #8b949e;
+      text-align: center;
+      margin-top: 0.4rem;
+    }
+
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1.2rem;
+      width: 100%;
+      max-width: 860px;
+    }
+
+    .card {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 10px;
+      padding: 1.4rem 1.6rem;
+    }
+
+    .card h2 {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #8b949e;
+      margin-bottom: 0.6rem;
+    }
+
+    .card .value {
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: #e6edf3;
+      word-break: break-all;
+    }
+
+    .card .value.ok   { color: #3fb950; }
+    .card .value.err  { color: #f85149; }
+
+    footer {
+      color: #484f58;
+      font-size: 0.8rem;
+      text-align: center;
+    }
+
+    a { color: #58a6ff; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>🚀 MicroK8s DevOps Demo</h1>
+    <p>Refresh the page to observe load-balancing across pods &amp; nodes.</p>
+  </header>
+
+  <div class="card-grid">
+
+    <div class="card">
+      <h2>Pod Name</h2>
+      <!-- Each replica has a unique pod name; refreshing shows round-robin -->
+      <div class="value">{{ pod_name }}</div>
+    </div>
+
+    <div class="card">
+      <h2>Node Name</h2>
+      <!-- Injected via Kubernetes Downward API (spec.nodeName) -->
+      <div class="value">{{ node_name }}</div>
+    </div>
+
+    <div class="card">
+      <h2>PostgreSQL Status</h2>
+      {% if db_status.startswith("OK") %}
+        <div class="value ok">{{ db_status }}</div>
+      {% else %}
+        <div class="value err">{{ db_status }}</div>
+      {% endif %}
+    </div>
+
+    <div class="card">
+      <h2>Health Endpoint</h2>
+      <div class="value">
+        <a href="/healthz">/healthz</a> — liveness probe
+      </div>
+    </div>
+
+  </div>
+
+  <footer>
+    MicroK8s 1.28 · Flask production ·
+    <a href="https://microk8s.io" target="_blank">microk8s.io</a>
+  </footer>
+
+</body>
+</html>
