@@ -10,7 +10,27 @@ microk8s kubectl create namespace "$ARGOCD_NS" --dry-run=client -o yaml | \
   microk8s kubectl apply -f -
 
 echo "[argocd] Installing ArgoCD (stable) ..."
-microk8s kubectl apply -n "$ARGOCD_NS" \
+# WHY --server-side:
+#   The default `kubectl apply` (client-side) stores the full manifest in a
+#   "last-applied-configuration" annotation on each resource so it can compute
+#   diffs on the next apply. ArgoCD's CRDs (e.g. applicationsets.argoproj.io)
+#   are so large that this annotation exceeds Kubernetes' 262144-byte limit,
+#   causing the error:
+#     "The CustomResourceDefinition is invalid:
+#      metadata.annotations: Too long: may not be more than 262144 bytes"
+#
+#   --server-side moves the apply logic to the API server, which uses a leaner
+#   "managed fields" mechanism instead of that annotation — no size limit hit.
+#
+# WHY --force-conflicts:
+#   On a first install there are no conflicts, but if you re-run after a partial
+#   install, the API server may see field ownership conflicts between the old
+#   client-side apply and the new server-side apply. --force-conflicts lets the
+#   server-side apply take ownership without erroring out.
+microk8s kubectl apply \
+  --server-side \
+  --force-conflicts \
+  -n "$ARGOCD_NS" \
   -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
 
 echo "[argocd] Waiting for server deployment (up to 3 min) ..."
