@@ -122,6 +122,25 @@ else
     skip "ArgoCD namespace not found"
 fi
 
+# ── 4. Remove Kubernetes Dashboard (if installed) ────────────────────────────
+# setup-dashboard.sh installs into the `kubernetes-dashboard` namespace.
+# Deleting the namespace removes the deployment, service, RBAC, and the
+# admin-user ServiceAccount + ClusterRoleBinding all in one command.
+info "Checking for Kubernetes Dashboard namespace ..."
+if microk8s kubectl get namespace kubernetes-dashboard &>/dev/null; then
+    info "Removing kubernetes-dashboard namespace and all its resources ..."
+    microk8s kubectl delete namespace kubernetes-dashboard
+    # Also remove the ClusterRoleBinding which lives outside the namespace
+    microk8s kubectl delete clusterrolebinding admin-user 2>/dev/null || true
+    echo "         Waiting for kubernetes-dashboard namespace to terminate ..."
+    timeout 60 bash -c \
+        'until ! microk8s kubectl get namespace kubernetes-dashboard &>/dev/null; do sleep 2; done' \
+        || warn "Namespace still terminating — may take a moment longer."
+    success "Kubernetes Dashboard removed."
+else
+    skip "kubernetes-dashboard namespace not found"
+fi
+
 # ── 5. Clean up any leftover pods (e.g. stuck Terminating) ───────────────────
 info "Checking for any stuck project pods ..."
 STUCK=$(microk8s kubectl get pods -n default \
