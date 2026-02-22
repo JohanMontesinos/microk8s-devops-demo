@@ -1,0 +1,18 @@
+# Python cache files
+__pycache__/
+*.pyc
+*.pyo
+
+# Environment variables (may contain secrets)
+.env
+
+# macOS system files
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Editor folders
+.vscode/
+.idea/
+*.swp
+*.swo
