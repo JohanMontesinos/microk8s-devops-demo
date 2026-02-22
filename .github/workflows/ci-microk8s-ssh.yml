@@ -1,0 +1,79 @@
+# CI/CD pipeline: SSH into Node1 -> rsync app/ -> docker build/push -> helm upgrade.
+# No GitHub Actions runner needs to run ON Node1.
+#
+# Required GitHub Secrets (Settings -> Secrets and Variables -> Actions):
+#   NODE1_IP      - LAN IP of Node1 (e.g. 192.168.1.100)
+#   NODE1_USER    - SSH username on Node1 (must be in the microk8s group)
+#   NODE1_SSH_KEY - Private key content (generate: ssh-keygen -t ed25519 -f ci_key)
+#                   Corresponding public key must be in ~/.ssh/authorized_keys on Node1.
+
+name: Build and Deploy to MicroK8s
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "app/**"
+      - "charts/**"
+      - "manifests/**"
+
+jobs:
+  deploy:
+    name: SSH Deploy to Node1
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up SSH agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.NODE1_SSH_KEY }}
+
+      - name: Add Node1 to known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          # Accept the host key automatically (safe for a private LAN-only server)
+          ssh-keyscan -H "${{ secrets.NODE1_IP }}" >> ~/.ssh/known_hosts
+
+      - name: Rsync app and charts to Node1
+        run: |
+          rsync -avz --delete \
+            --exclude='.git' \
+            --exclude='__pycache__' \
+            --exclude='*.pyc' \
+            app/ \
+            "${{ secrets.NODE1_USER }}@${{ secrets.NODE1_IP }}:~/microk8s-devops-demo/app/"
+
+          rsync -avz --delete \
+            charts/ \
+            "${{ secrets.NODE1_USER }}@${{ secrets.NODE1_IP }}:~/microk8s-devops-demo/charts/"
+
+      - name: Build, push image, and helm upgrade on Node1
+        run: |
+          ssh "${{ secrets.NODE1_USER }}@${{ secrets.NODE1_IP }}" bash -s <<'REMOTE'
+          set -euo pipefail
+          NODE1_IP=$(hostname -I | awk '{print $1}')
+          REGISTRY="${NODE1_IP}:32000"
+          cd ~/microk8s-devops-demo
+
+          echo "==> Building image ..."
+          docker build -t "${REGISTRY}/webapp:latest" app/
+
+          echo "==> Pushing image to local registry ..."
+          docker push "${REGISTRY}/webapp:latest"
+
+          echo "==> Helm upgrade --install ..."
+          microk8s helm3 upgrade webapp charts/webapp \
+            --set "image.repository=${REGISTRY}/webapp" \
+            --set "image.tag=latest" \
+            --reuse-values \
+            --wait \
+            --timeout 3m \
+            --namespace default
+
+          echo "==> Pods after deploy:"
+          microk8s kubectl get pods -o wide
+          REMOTE

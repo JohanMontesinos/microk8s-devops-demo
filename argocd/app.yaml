@@ -1,0 +1,41 @@
+# ArgoCD Application manifest.
+# Prerequisites:
+#   1. Gitea running locally (see docs/README.md - GitOps section).
+#   2. This repo pushed to Gitea as http://NODE1_IP:3000/gitea/microk8s-devops-demo.git
+#   3. ArgoCD installed via: ./scripts/setup-argocd.sh
+#
+# REPLACE all occurrences of NODE1_IP with your actual LAN IP before applying.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: webapp
+  namespace: argocd
+spec:
+  project: default
+
+  # ── Source: local Gitea repository ────────────────────────────────────────
+  source:
+    # REPLACE NODE1_IP with the real LAN IP of Node1
+    repoURL: "http://NODE1_IP:3000/gitea/microk8s-devops-demo.git"
+    targetRevision: HEAD
+    path: charts/webapp        # Path inside the repo where the Helm chart lives
+    helm:
+      valueFiles:
+        - values.yaml
+      parameters:
+        # Override image repository at sync time so ArgoCD always uses the local registry
+        - name: image.repository
+          value: "NODE1_IP:32000/webapp"
+
+  # ── Destination: local cluster ────────────────────────────────────────────
+  destination:
+    server: https://kubernetes.default.svc   # In-cluster API server address
+    namespace: default
+
+  # ── Sync policy: automated, self-healing ──────────────────────────────────
+  syncPolicy:
+    automated:
+      prune: true       # Delete Kubernetes resources that are removed from Git
+      selfHeal: true    # Re-apply if someone manually edits the live cluster state
+    syncOptions:
+      - CreateNamespace=true

@@ -1,0 +1,101 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "webapp.fullname" . }}
+  labels:
+    {{- include "webapp.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: webapp
+  template:
+    metadata:
+      labels:
+        app: webapp
+        {{- include "webapp.labels" . | nindent 8 }}
+    spec:
+      # ── Soft topology spreading ──────────────────────────────────────────────
+      # whenUnsatisfiable: ScheduleAnyway means the scheduler will place the pod
+      # even if the spread constraint cannot be satisfied (e.g. single-node cluster).
+      {{- if .Values.topologySpread.enabled }}
+      topologySpreadConstraints:
+        - maxSkew: {{ .Values.topologySpread.maxSkew }}
+          topologyKey: {{ .Values.topologySpread.topologyKey }}
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: webapp
+      {{- end }}
+
+      # ── Preferred pod anti-affinity ──────────────────────────────────────────
+      # "preferred" means the scheduler tries to spread but will co-locate pods
+      # on the same node rather than leaving them Pending.
+      {{- if .Values.podAntiAffinity.enabled }}
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: {{ .Values.podAntiAffinity.weight }}
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: webapp
+                topologyKey: {{ .Values.podAntiAffinity.topologyKey }}
+      {{- end }}
+
+      containers:
+        - name: webapp
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 5000
+              protocol: TCP
+
+          # ── Downward API: inject pod and node identity into the Flask app ──
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  # spec.nodeName is populated by the scheduler at bind time
+                  fieldPath: spec.nodeName
+            - name: DB_HOST
+              value: {{ .Values.postgres.host | quote }}
+            - name: DB_PORT
+              value: {{ .Values.postgres.port | quote }}
+            - name: DB_NAME
+              value: {{ .Values.postgres.dbName | quote }}
+            - name: DB_USER
+              value: {{ .Values.postgres.user | quote }}
+            - name: DB_PASS
+              value: {{ .Values.postgres.password | quote }}
+
+          # ── Resource limits ───────────────────────────────────────────────
+          resources:
+            requests:
+              cpu: {{ .Values.resources.requests.cpu | quote }}
+              memory: {{ .Values.resources.requests.memory | quote }}
+            limits:
+              cpu: {{ .Values.resources.limits.cpu | quote }}
+              memory: {{ .Values.resources.limits.memory | quote }}
+
+          # ── Probes ────────────────────────────────────────────────────────
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            failureThreshold: 3
+
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            failureThreshold: 3
