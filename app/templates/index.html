@@ -3,122 +3,660 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>MicroK8s Demo App</title>
+  <title>MicroK8s DevOps Demo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
   <style>
-    /* Dark theme — no external CSS dependency so it works with no internet */
+    /* ── Reset ─────────────────────────────────────────── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+    /* ── Design tokens ─────────────────────────────────── */
+    :root {
+      --bg:          #020c14;
+      --surface:     #041624;
+      --surface2:    #071e30;
+      --border:      #0d3554;
+      --border-glow: #0d6eaf;
+      --text:        #a8cce0;
+      --text-dim:    #3a6a8a;
+      --text-bright: #e0f4ff;
+      --accent:      #00c8ff;
+      --accent2:     #0077b6;
+      --ok:          #00e5a0;
+      --err:         #ff4d6d;
+      --warn:        #ffd60a;
+      --font-mono:   'Space Mono', monospace;
+      --font-display:'Syne', sans-serif;
+    }
+
+    /* ── Body & scanline overlay ───────────────────────── */
     body {
-      background: #0d1117;
-      color: #c9d1d9;
-      font-family: "Segoe UI", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-mono);
       min-height: 100vh;
       display: flex;
       flex-direction: column;
+      padding: 0;
+      overflow-x: hidden;
+      position: relative;
+    }
+
+    /* CRT scanline effect — pure CSS, no images needed */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0, 200, 255, 0.015) 2px,
+        rgba(0, 200, 255, 0.015) 4px
+      );
+      pointer-events: none;
+      z-index: 100;
+    }
+
+    /* Animated grid background */
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(0, 200, 255, 0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 200, 255, 0.04) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ── Top bar ────────────────────────────────────────── */
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.8rem 2rem;
+      border-bottom: 1px solid var(--border);
+      background: rgba(4, 22, 36, 0.95);
+      backdrop-filter: blur(8px);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+
+    .topbar-left {
+      display: flex;
+      align-items: center;
+      gap: 0.8rem;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--ok);
+      box-shadow: 0 0 8px var(--ok);
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; box-shadow: 0 0 8px var(--ok); }
+      50%       { opacity: 0.4; box-shadow: 0 0 2px var(--ok); }
+    }
+
+    .topbar-brand {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--text-dim);
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+    }
+
+    .topbar-brand span {
+      color: var(--accent);
+    }
+
+    .topbar-right {
+      font-size: 0.7rem;
+      color: var(--text-dim);
+      letter-spacing: 0.1em;
+    }
+
+    /* ── Main layout ────────────────────────────────────── */
+    main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 3rem 1.5rem;
+      gap: 2.5rem;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* ── Hero header ────────────────────────────────────── */
+    .hero {
+      text-align: center;
+      animation: fadedown 0.6s ease both;
+    }
+
+    @keyframes fadedown {
+      from { opacity: 0; transform: translateY(-16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .hero-eyebrow {
+      font-size: 0.7rem;
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 0.8rem;
+      display: flex;
       align-items: center;
       justify-content: center;
-      gap: 2rem;
-      padding: 2rem;
+      gap: 0.6rem;
     }
 
-    header h1 {
-      font-size: 1.8rem;
-      color: #58a6ff;
-      text-align: center;
+    .hero-eyebrow::before,
+    .hero-eyebrow::after {
+      content: '';
+      height: 1px;
+      width: 40px;
+      background: linear-gradient(90deg, transparent, var(--accent));
+    }
+    .hero-eyebrow::after {
+      background: linear-gradient(90deg, var(--accent), transparent);
     }
 
-    header p {
-      color: #8b949e;
-      text-align: center;
+    .hero h1 {
+      font-family: var(--font-display);
+      font-size: clamp(2rem, 5vw, 3.2rem);
+      font-weight: 800;
+      color: var(--text-bright);
+      letter-spacing: -0.02em;
+      line-height: 1.1;
+      text-shadow: 0 0 40px rgba(0, 200, 255, 0.3);
+    }
+
+    .hero h1 .accent {
+      color: var(--accent);
+    }
+
+    .hero-sub {
+      margin-top: 0.8rem;
+      font-size: 0.8rem;
+      color: var(--text-dim);
+      letter-spacing: 0.05em;
+    }
+
+    /* ── Dashboard grid ─────────────────────────────────── */
+    .dashboard {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 1rem;
+      width: 100%;
+      max-width: 1000px;
+      animation: fadein 0.8s ease 0.2s both;
+    }
+
+    @keyframes fadein {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── Panel base ─────────────────────────────────────── */
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 1.4rem;
+      position: relative;
+      overflow: hidden;
+      transition: border-color 0.3s, box-shadow 0.3s;
+    }
+
+    .panel:hover {
+      border-color: var(--border-glow);
+      box-shadow: 0 0 20px rgba(0, 110, 175, 0.2),
+                  inset 0 0 20px rgba(0, 200, 255, 0.03);
+    }
+
+    /* Top accent bar on each panel */
+    .panel::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, var(--accent2), var(--accent), transparent);
+      opacity: 0.6;
+    }
+
+    /* Corner decorators */
+    .panel::after {
+      content: '';
+      position: absolute;
+      bottom: 0; right: 0;
+      width: 20px; height: 20px;
+      border-bottom: 1px solid var(--border-glow);
+      border-right: 1px solid var(--border-glow);
+      opacity: 0.4;
+    }
+
+    /* ── Grid spans ─────────────────────────────────────── */
+    .span-6  { grid-column: span 6; }
+    .span-4  { grid-column: span 4; }
+    .span-12 { grid-column: span 12; }
+
+    @media (max-width: 700px) {
+      .span-6, .span-4 { grid-column: span 12; }
+    }
+
+    /* ── Panel internals ────────────────────────────────── */
+    .panel-label {
+      font-size: 0.62rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      margin-bottom: 0.8rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .panel-label::before {
+      content: '//';
+      color: var(--accent2);
+    }
+
+    .panel-value {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--text-bright);
+      word-break: break-all;
+      line-height: 1.4;
+    }
+
+    .panel-value.ok  {
+      color: var(--ok);
+      text-shadow: 0 0 12px rgba(0, 229, 160, 0.4);
+    }
+
+    .panel-value.err {
+      color: var(--err);
+      text-shadow: 0 0 12px rgba(255, 77, 109, 0.4);
+    }
+
+    /* ── Pod / Node panel specific ──────────────────────── */
+    .id-prefix {
+      font-size: 0.7rem;
+      color: var(--accent2);
+      display: block;
+      margin-bottom: 0.2rem;
+    }
+
+    .id-suffix {
+      font-size: 1.1rem;
+      color: var(--accent);
+    }
+
+    /* ── DB panel ───────────────────────────────────────── */
+    .db-row {
+      display: flex;
+      align-items: center;
+      gap: 0.7rem;
+      margin-top: 0.3rem;
+    }
+
+    .db-indicator {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .db-indicator.ok  {
+      background: var(--ok);
+      box-shadow: 0 0 10px var(--ok);
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    .db-indicator.err {
+      background: var(--err);
+      box-shadow: 0 0 10px var(--err);
+    }
+
+    /* ── Metrics bar (visual CPU/mem placeholder) ───────── */
+    .bar-row {
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
       margin-top: 0.4rem;
     }
 
-    .card-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-      gap: 1.2rem;
-      width: 100%;
-      max-width: 860px;
+    .bar-item {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
     }
 
-    .card {
-      background: #161b22;
-      border: 1px solid #30363d;
-      border-radius: 10px;
-      padding: 1.4rem 1.6rem;
+    .bar-meta {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.65rem;
+      color: var(--text-dim);
     }
 
-    .card h2 {
-      font-size: 0.75rem;
+    .bar-track {
+      height: 4px;
+      background: var(--surface2);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .bar-fill {
+      height: 100%;
+      border-radius: 2px;
+      background: linear-gradient(90deg, var(--accent2), var(--accent));
+      box-shadow: 0 0 6px var(--accent);
+      animation: barload 1.2s cubic-bezier(.4,0,.2,1) both;
+    }
+
+    @keyframes barload {
+      from { width: 0 !important; }
+    }
+
+    /* ── Health / probe panel ───────────────────────────── */
+    .probe-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.5rem 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.78rem;
+    }
+
+    .probe-row:last-child { border-bottom: none; }
+
+    .probe-name { color: var(--text-dim); }
+
+    .probe-badge {
+      font-size: 0.65rem;
+      padding: 0.2rem 0.6rem;
+      border-radius: 2px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+    }
+
+    .probe-badge.live {
+      background: rgba(0, 229, 160, 0.15);
+      color: var(--ok);
+      border: 1px solid rgba(0, 229, 160, 0.3);
+    }
+
+    .probe-badge.path {
+      background: rgba(0, 200, 255, 0.1);
+      color: var(--accent);
+      border: 1px solid rgba(0, 200, 255, 0.25);
+      font-family: var(--font-mono);
+    }
+
+    /* ── Wide info bar ──────────────────────────────────── */
+    .info-bar {
+      display: flex;
+      align-items: center;
+      gap: 2rem;
+      flex-wrap: wrap;
+    }
+
+    .info-item {
+      display: flex;
+      flex-direction: column;
+      gap: 0.2rem;
+    }
+
+    .info-item-label {
+      font-size: 0.6rem;
+      letter-spacing: 0.15em;
       text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: #8b949e;
-      margin-bottom: 0.6rem;
+      color: var(--text-dim);
     }
 
-    .card .value {
-      font-size: 1.05rem;
-      font-weight: 600;
-      color: #e6edf3;
-      word-break: break-all;
-    }
-
-    .card .value.ok   { color: #3fb950; }
-    .card .value.err  { color: #f85149; }
-
-    footer {
-      color: #484f58;
+    .info-item-value {
       font-size: 0.8rem;
-      text-align: center;
+      color: var(--text-bright);
     }
 
-    a { color: #58a6ff; text-decoration: none; }
-    a:hover { text-decoration: underline; }
+    .info-sep {
+      width: 1px;
+      height: 28px;
+      background: var(--border);
+      flex-shrink: 0;
+    }
+
+    /* ── Refresh hint ───────────────────────────────────── */
+    .refresh-hint {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.68rem;
+      color: var(--text-dim);
+      letter-spacing: 0.08em;
+      animation: fadein 1s ease 0.6s both;
+    }
+
+    .kbd {
+      display: inline-block;
+      padding: 0.15rem 0.4rem;
+      border: 1px solid var(--border-glow);
+      border-radius: 3px;
+      font-size: 0.65rem;
+      color: var(--accent);
+      background: var(--surface2);
+    }
+
+    /* ── Footer ─────────────────────────────────────────── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 1rem 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      font-size: 0.65rem;
+      color: var(--text-dim);
+      letter-spacing: 0.08em;
+      position: relative;
+      z-index: 1;
+    }
+
+    footer a {
+      color: var(--accent2);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    footer a:hover { color: var(--accent); }
+
+    /* ── Typing cursor on refresh line ─────────────────── */
+    .cursor {
+      display: inline-block;
+      width: 7px;
+      height: 0.9em;
+      background: var(--accent);
+      margin-left: 2px;
+      vertical-align: middle;
+      animation: blink 1s step-end infinite;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0; }
+    }
   </style>
 </head>
 <body>
 
-  <header>
-    <h1>🚀 MicroK8s DevOps Demo</h1>
-    <p>Refresh the page to observe load-balancing across pods &amp; nodes.</p>
-  </header>
-
-  <div class="card-grid">
-
-    <div class="card">
-      <h2>Pod Name</h2>
-      <!-- Each replica has a unique pod name; refreshing shows round-robin -->
-      <div class="value">{{ pod_name }}</div>
+  <!-- ── Top status bar ─────────────────────────────── -->
+  <div class="topbar">
+    <div class="topbar-left">
+      <div class="status-dot"></div>
+      <span class="topbar-brand">
+        SYS // <span>CLUSTER ONLINE</span>
+      </span>
     </div>
-
-    <div class="card">
-      <h2>Node Name</h2>
-      <!-- Injected via Kubernetes Downward API (spec.nodeName) -->
-      <div class="value">{{ node_name }}</div>
-    </div>
-
-    <div class="card">
-      <h2>PostgreSQL Status</h2>
-      {% if db_status.startswith("OK") %}
-        <div class="value ok">{{ db_status }}</div>
-      {% else %}
-        <div class="value err">{{ db_status }}</div>
-      {% endif %}
-    </div>
-
-    <div class="card">
-      <h2>Health Endpoint</h2>
-      <div class="value">
-        <a href="/healthz">/healthz</a> — liveness probe
-      </div>
-    </div>
-
+    <div class="topbar-right" id="clock">──:──:── UTC</div>
   </div>
 
+  <!-- ── Main content ───────────────────────────────── -->
+  <main>
+
+    <!-- Hero -->
+    <div class="hero">
+      <div class="hero-eyebrow">Mission Control</div>
+      <h1>🚀 <span class="accent">MicroK8s</span> DevOps Demo</h1>
+      <p class="hero-sub">
+        Kubernetes · Flask · PostgreSQL · Helm · GitOps
+      </p>
+    </div>
+
+    <!-- Dashboard panels -->
+    <div class="dashboard">
+
+      <!-- Pod Name -->
+      <div class="panel span-6">
+        <div class="panel-label">Active Pod</div>
+        {% set parts = pod_name.rsplit('-', 2) %}
+        {% if parts|length == 3 %}
+          <div class="panel-value">
+            <span class="id-prefix">{{ parts[0] }}-{{ parts[1] }}-</span>
+            <span class="id-suffix">{{ parts[2] }}</span>
+          </div>
+        {% else %}
+          <div class="panel-value">{{ pod_name }}</div>
+        {% endif %}
+        <div style="margin-top:0.6rem;font-size:0.65rem;color:var(--text-dim)">
+          Downward API · spec.podName
+        </div>
+      </div>
+
+      <!-- Node Name -->
+      <div class="panel span-6">
+        <div class="panel-label">Scheduled Node</div>
+        <div class="panel-value" style="color:var(--warn);text-shadow:0 0 12px rgba(255,214,10,0.4)">
+          {{ node_name }}
+        </div>
+        <div style="margin-top:0.6rem;font-size:0.65rem;color:var(--text-dim)">
+          Downward API · spec.nodeName
+        </div>
+      </div>
+
+      <!-- PostgreSQL status -->
+      <div class="panel span-6">
+        <div class="panel-label">PostgreSQL</div>
+        {% if db_status.startswith("OK") %}
+          <div class="db-row">
+            <div class="db-indicator ok"></div>
+            <div class="panel-value ok">Connected</div>
+          </div>
+          <div style="margin-top:0.5rem;font-size:0.7rem;color:var(--text-dim);word-break:break-all">
+            {{ db_status[5:] }}
+          </div>
+        {% else %}
+          <div class="db-row">
+            <div class="db-indicator err"></div>
+            <div class="panel-value err">Unreachable</div>
+          </div>
+          <div style="margin-top:0.5rem;font-size:0.7rem;color:var(--err);opacity:0.7;word-break:break-all">
+            {{ db_status }}
+          </div>
+        {% endif %}
+      </div>
+
+      <!-- Health probes -->
+      <div class="panel span-6">
+        <div class="panel-label">Health Probes</div>
+        <div class="probe-row">
+          <span class="probe-name">Liveness</span>
+          <span class="probe-badge live">PASSING</span>
+        </div>
+        <div class="probe-row">
+          <span class="probe-name">Endpoint</span>
+          <a href="/healthz" style="text-decoration:none">
+            <span class="probe-badge path">/healthz</span>
+          </a>
+        </div>
+        <div class="probe-row">
+          <span class="probe-name">Protocol</span>
+          <span class="probe-badge path">HTTP GET</span>
+        </div>
+      </div>
+
+      <!-- Stack info bar -->
+      <div class="panel span-12">
+        <div class="panel-label">Stack</div>
+        <div class="info-bar">
+          <div class="info-item">
+            <span class="info-item-label">Orchestration</span>
+            <span class="info-item-value">MicroK8s 1.28</span>
+          </div>
+          <div class="info-sep"></div>
+          <div class="info-item">
+            <span class="info-item-label">Runtime</span>
+            <span class="info-item-value">Flask + Gunicorn</span>
+          </div>
+          <div class="info-sep"></div>
+          <div class="info-item">
+            <span class="info-item-label">Database</span>
+            <span class="info-item-value">PostgreSQL 15 Alpine</span>
+          </div>
+          <div class="info-sep"></div>
+          <div class="info-item">
+            <span class="info-item-label">Deployment</span>
+            <span class="info-item-value">Helm 3</span>
+          </div>
+          <div class="info-sep"></div>
+          <div class="info-item">
+            <span class="info-item-label">GitOps</span>
+            <span class="info-item-value">ArgoCD + Gitea</span>
+          </div>
+          <div class="info-sep"></div>
+          <div class="info-item">
+            <span class="info-item-label">CI/CD</span>
+            <span class="info-item-value">GitHub Actions</span>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /dashboard -->
+
+    <!-- Refresh hint -->
+    <div class="refresh-hint">
+      Press <span class="kbd">F5</span> to observe pod &amp; node rotation across replicas
+      <span class="cursor"></span>
+    </div>
+
+  </main>
+
+  <!-- ── Footer ─────────────────────────────────────── -->
   <footer>
-    MicroK8s 1.28 · Flask production ·
-    <a href="https://microk8s.io" target="_blank">microk8s.io</a>
+    <span>MicroK8s DevOps Demo · v2</span>
+    <span>Flask · Gunicorn · Helm · ArgoCD</span>
+    <a href="https://microk8s.io" target="_blank">microk8s.io ↗</a>
   </footer>
+
+  <!-- Live UTC clock — no external dependency -->
+  <script>
+    function tick() {
+      const now = new Date();
+      const pad = n => String(n).padStart(2, '0');
+      document.getElementById('clock').textContent =
+        `${pad(now.getUTCHours())}:${pad(now.getUTCMinutes())}:${pad(now.getUTCSeconds())} UTC`;
+    }
+    tick();
+    setInterval(tick, 1000);
+  </script>
 
 </body>
 </html>
