@@ -52,3 +52,4 @@ jobs:
 
           echo "==> Deploy complete. Current pods:"
           microk8s kubectl get pods -o wide --namespace default
+
