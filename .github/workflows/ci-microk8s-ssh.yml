@@ -50,6 +50,10 @@ jobs:
             --timeout 5m \
             --namespace default
 
+          # Force pod restart so new :latest image is always pulled
+          microk8s kubectl rollout restart deployment/webapp
+          microk8s kubectl rollout status deployment/webapp --timeout=3m
+
           echo "==> Deploy complete. Current pods:"
           microk8s kubectl get pods -o wide --namespace default
 
