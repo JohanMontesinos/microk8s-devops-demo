@@ -42,11 +42,14 @@ def index():
     )
 
 
-@app.route("/healthz")
+""" @app.route("/healthz")
 def healthz():
     # Liveness probe — always returns 200 if process is alive
-    return "ok", 200
+    return "ok", 200 """
 
+@app.route('/healthz')
+def healthz():
+    return {"status": "ok"}, 200
 
 if __name__ == "__main__":
     # Development only; production uses gunicorn (see Dockerfile CMD)
