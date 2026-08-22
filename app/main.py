@@ -60,4 +60,4 @@ def healthz():
 if __name__ == "__main__":
     # Development only; production uses gunicorn (see Dockerfile CMD)
     app.run(host="0.0.0.0", port=5000, debug=False)
-# Sun Agosto 18 20:05:00 -04 2026
+# Sun Agosto 22 19:00:00 -04 2026
